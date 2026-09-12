@@ -1,20 +1,158 @@
 <!DOCTYPE html>
 <html lang="fi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tähtien Talli</title>
-  <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #0b1020; color: #f3f4f6; }
-    main { text-align: center; padding: 2rem; }
-    h1 { font-size: clamp(2rem, 6vw, 3.5rem); margin: 0 0 .5rem; letter-spacing: .02em; }
-    p { color: #b7bccb; margin: 0; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suomen Tallit — Uudenmaan hevostallit</title>
+<meta name="description" content="Suomen kattavin hevostallihakemisto. Uudenmaan tallit kartalla: sijainnit, hinnat, hevoset, palvelut ja yhteystiedot.">
+<meta name="theme-color" content="#111e34">
+<link rel="icon" href="assets/brand/emblem-64.png">
+<link rel="apple-touch-icon" href="assets/brand/emblem-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
-  <main>
-    <h1>Tähtien Talli</h1>
-    <p>Sivusto on tulossa. Longshore Oy.</p>
+
+<a class="skip" href="#tulokset">Siirry hakutuloksiin</a>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="assets/brand/emblem-128.png" alt="" width="44" height="44">
+    <div class="brand-text">
+      <strong>SUOMEN <span>TALLIT</span></strong>
+      <small>Uudenmaan hevostallit</small>
+    </div>
+  </div>
+
+  <div class="searchwrap">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 105.3 14l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"/></svg>
+    <input id="q" type="search" placeholder="Hae tallin nimellä, kunnalla, hevosella, palvelulla…" autocomplete="off" aria-label="Vapaa tekstihaku">
+    <button id="qclear" type="button" title="Tyhjennä" aria-label="Tyhjennä haku">×</button>
+  </div>
+
+  <div class="topactions">
+    <button id="filterbtn" class="icon filterbtn" aria-label="Näytä tai piilota suodattimet"
+            aria-expanded="true" aria-controls="filters" title="Suodattimet">
+      <span aria-hidden="true">☰</span><span class="filterbtn__txt">Suodattimet</span>
+    </button>
+    <div class="viewtoggle" role="tablist" aria-label="Näkymä">
+      <button data-view="list" class="on" role="tab" aria-selected="true"
+              aria-controls="tulokset">Lista</button>
+      <button data-view="map" role="tab" aria-selected="false"
+              aria-controls="map">Kartta</button>
+    </div>
+    <button id="themebtn" class="icon" title="Vaalea / tumma" aria-label="Vaihda teema">◐</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <button id="filtershow" class="filtershow" aria-label="Näytä suodattimet"
+          aria-controls="filters" title="Näytä suodattimet">
+    <span class="filtershow__ico" aria-hidden="true">›</span>
+    <span class="filtershow__txt">Suodattimet</span>
+  </button>
+
+  <aside class="filters" id="filters" aria-label="Suodattimet">
+    <div class="filters-head">
+      <h2>Suodattimet</h2>
+      <div class="filters-head__btns">
+        <button id="reset" type="button">Tyhjennä</button>
+        <button id="filterhide" type="button" class="hidebtn"
+                aria-label="Piilota suodattimet" title="Piilota suodattimet">‹</button>
+      </div>
+    </div>
+
+    <section class="fgroup">
+      <h3>Kunta</h3>
+      <div class="chk" id="f-kunta"></div>
+    </section>
+
+    <section class="fgroup">
+      <h3>Tallityyppi</h3>
+      <div class="chk" id="f-tyyppi"></div>
+    </section>
+
+    <section class="fgroup">
+      <h3>Palvelut</h3>
+      <div class="chk" id="f-palvelu"></div>
+    </section>
+
+    <section class="fgroup">
+      <h3>Lajit</h3>
+      <div class="chk" id="f-laji"></div>
+    </section>
+
+    <section class="fgroup">
+      <h3>Tilat ja varusteet</h3>
+      <div class="chk" id="f-tila"></div>
+    </section>
+
+    <section class="fgroup">
+      <h3>Hevosia tallissa</h3>
+      <div class="rangerow">
+        <label>vähintään <input type="number" id="f-hevmin" min="0" step="1" placeholder="0"></label>
+        <label>enintään <input type="number" id="f-hevmax" min="0" step="1" placeholder="—"></label>
+      </div>
+    </section>
+
+    <section class="fgroup">
+      <h3>Hinta (€)</h3>
+      <div class="rangerow">
+        <label>alkaen <input type="number" id="f-hintamin" min="0" step="1" placeholder="0"></label>
+        <label>enintään <input type="number" id="f-hintamax" min="0" step="1" placeholder="—"></label>
+      </div>
+      <p class="hint">Suodattaa tallin halvimman löydetyn hinnan mukaan.</p>
+    </section>
+
+    <section class="fgroup">
+      <h3>Muut ehdot</h3>
+      <label class="sw"><input type="checkbox" id="f-srl"> Vain SRL:n jäsentallit</label>
+      <label class="sw"><input type="checkbox" id="f-www"> Vain tallit joilla on kotisivu</label>
+      <label class="sw"><input type="checkbox" id="f-kuva"> Vain tallit joilla on kuvia</label>
+      <label class="sw"><input type="checkbox" id="f-hinta"> Vain tallit joilla on hintatietoa</label>
+      <label class="sw"><input type="checkbox" id="f-hevoset"> Vain tallit joilla on hevosluettelo</label>
+      <label class="sw"><input type="checkbox" id="f-kartta"> Vain kartalla näkyvät</label>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div class="resbar">
+      <div id="count" class="count">Ladataan…</div>
+      <div class="sortwrap">
+        <label for="sort">Järjestys</label>
+        <select id="sort">
+          <option value="nimi">Nimi (A–Ö)</option>
+          <option value="kunta">Kunta</option>
+          <option value="hinta">Hinta (halvin ensin)</option>
+          <option value="hevosia">Hevosten määrä</option>
+          <option value="tiedot">Tietojen kattavuus</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="content">
+      <section id="tulokset" class="results" aria-live="polite"></section>
+      <section class="mapwrap"><div id="map"></div></section>
+    </div>
   </main>
+</div>
+
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Tallin tiedot">
+  <button class="drawer-close" id="drawerclose" aria-label="Sulje">×</button>
+  <div id="drawerbody"></div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<footer class="foot">
+  <p><strong>Suomen Tallit</strong> — Uudenmaan hevostallit. Tiedot koottu avoimista lähteistä ja tallien omilta verkkosivuilta.</p>
+  <p class="src" id="footsources"></p>
+  <p class="small">Karttatiedot © OpenStreetMapin tekijät (ODbL). Yritystiedot: PRH &amp; Verohallinto, YTJ. Tallihaku: Suomen Ratsastajainliitto. Kuvat ovat tallien omilta sivuilta ja kuuluvat niiden oikeudenhaltijoille.</p>
+</footer>
+
+<script src="assets/vendor/leaflet/leaflet.js"></script>
+<script src="data/tallit.js"></script>
+<script src="assets/js/app.js"></script>
 </body>
 </html>
