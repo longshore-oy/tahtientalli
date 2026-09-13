@@ -83,7 +83,8 @@ body.filters-piilossa .filterbtn:hover{background:var(--gold-lt)}
 .layout{display:flex; align-items:flex-start; overflow:hidden}
 .filters{
   position:sticky; top:var(--head); flex:0 0 268px; width:268px;
-  height:calc(100vh - var(--head)); overflow:auto; padding:16px 14px 40px;
+  height:calc(100vh - var(--head)); overflow-y:auto; overflow-x:hidden;
+  padding:16px 14px 40px;
   border-right:1px solid var(--line); background:var(--card);
   margin-left:0; transition:margin-left .24s cubic-bezier(.4,0,.2,1);
 }
@@ -92,13 +93,15 @@ body.filters-piilossa .filters{margin-left:-268px}
 
 /* kahva jolla piilotetun paneelin saa takaisin */
 .filtershow{
-  position:fixed; left:0; top:calc(var(--head) + 18px); z-index:44;
+  position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:44;
   display:none; align-items:center; gap:6px;
-  padding:12px 10px 12px 8px; border:1px solid var(--line); border-left:0;
+  padding:16px 9px; border:1px solid var(--line); border-left:0;
   border-radius:0 12px 12px 0; background:var(--card); color:var(--accent);
   cursor:pointer; box-shadow:var(--shadow); font-size:12.5px; font-weight:600;
   writing-mode:vertical-rl; text-orientation:mixed;
 }
+/* piilotettuna kahvalle jää oma kaista, jottei se peitä sisältöä */
+body.filters-piilossa .main{padding-left:34px}
 .filtershow:hover{border-color:var(--gold);color:var(--text)}
 .filtershow__ico{writing-mode:horizontal-tb;font-size:16px;line-height:1}
 body.filters-piilossa .filtershow{display:flex}
@@ -114,11 +117,17 @@ body.filters-piilossa .filtershow{display:flex}
 .hidebtn:hover{border-color:var(--gold);color:var(--text)}
 .fgroup{padding:12px 0;border-top:1px solid var(--line)}
 .fgroup h3{margin:0 0 8px;font-size:13px;font-weight:700}
-.chk{max-height:230px;overflow:auto;display:flex;flex-direction:column;gap:2px;padding-right:4px}
-.chk label{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 6px;border-radius:7px;cursor:pointer}
+.chk{max-height:230px;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:2px;padding-right:4px}
+.chk label{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 6px;border-radius:7px;cursor:pointer;min-width:0}
+.chk label > span:first-of-type{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chk label:hover{background:var(--accent-lt)}
 .chk input{accent-color:var(--accent)}
 .chk .n{margin-left:auto;color:var(--soft);font-size:12px;font-variant-numeric:tabular-nums}
+.chkhaku{
+  width:100%;height:30px;margin-bottom:6px;padding:0 9px;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:13px
+}
+.chkhaku:focus{outline:none;border-color:var(--gold)}
 .rangerow{display:flex;gap:8px}
 .rangerow label{flex:1;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
 .rangerow input{height:32px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--bg)}
@@ -203,6 +212,13 @@ body[data-view="map"] .results{display:none}
 .dhero.noimg img{width:110px;height:110px;object-fit:contain}
 .dwrap{padding:18px 20px 60px}
 .dwrap h2{margin:0 0 4px;font-size:23px;line-height:1.22}
+.kopioi{
+  margin-left:8px;vertical-align:middle;width:28px;height:28px;
+  border:1px solid var(--line);border-radius:8px;background:var(--card);
+  color:var(--muted);cursor:pointer;font-size:14px;line-height:1
+}
+.kopioi:hover{border-color:var(--gold);color:var(--text)}
+.kopioi.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .dsub{color:var(--muted);font-size:13.5px;margin-bottom:12px}
 .dsec{margin-top:20px}
 .dsec h4{
@@ -212,9 +228,19 @@ body[data-view="map"] .results{display:none}
 .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:14px}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0;word-break:break-word}
-.ptable{width:100%;border-collapse:collapse;font-size:13.5px}
-.ptable td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-.ptable td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}
+.ptablewrap{
+  max-height:420px;overflow-y:auto;overflow-x:hidden;
+  border:1px solid var(--line);border-radius:10px
+}
+/* Kiintea sarakejako: pitka nimike rivittyy, summa pysyy aina nakyvissa */
+.ptable{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px}
+.ptable tr:last-child td{border-bottom:0}
+.ptable td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.ptable td:first-child{word-break:break-word;overflow-wrap:anywhere}
+.ptable td:last-child{
+  width:112px;text-align:right;white-space:nowrap;
+  font-variant-numeric:tabular-nums;font-weight:600
+}
 .horses{display:flex;flex-wrap:wrap;gap:6px}
 .horse{background:var(--accent-lt);color:var(--accent);border-radius:8px;padding:3px 9px;font-size:12.5px}
 .gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -244,6 +270,17 @@ body[data-view="map"] .results{display:none}
 }
 .pin.srl{background:linear-gradient(150deg,#3f6ea8,#1b2b47)}
 .pin.sel{background:linear-gradient(150deg,#ffd77a,#c6a058);width:32px;height:32px}
+
+/* karttamerkintojen ryhmittely */
+.klusteri{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;background:linear-gradient(150deg,#1b2b47,#0b1424);
+  color:#f0d99a;font-weight:700;font-size:13px;
+  border:2px solid rgba(240,214,150,.85);
+  box-shadow:0 2px 10px rgba(10,18,32,.45)
+}
+.marker-cluster{background:transparent!important}
+.marker-cluster div{background:transparent!important}
 
 /* ---------- footer ---------- */
 .foot{padding:22px 20px 34px;border-top:1px solid var(--line);background:var(--card);color:var(--muted);font-size:13px}

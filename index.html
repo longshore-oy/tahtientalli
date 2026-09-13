@@ -3,13 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Suomen Tallit — Uudenmaan hevostallit</title>
-<meta name="description" content="Suomen kattavin hevostallihakemisto. Uudenmaan tallit kartalla: sijainnit, hinnat, hevoset, palvelut ja yhteystiedot.">
+<title>Suomen Tallit — Suomen hevostallit</title>
+<meta name="description" content="Suomen kattavin hevostallihakemisto. Koko maan tallit kartalla: sijainnit, hinnat, hevoset, palvelut ja yhteystiedot.">
 <meta name="theme-color" content="#111e34">
 <link rel="icon" href="assets/brand/emblem-64.png">
 <link rel="apple-touch-icon" href="assets/brand/emblem-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="assets/vendor/markercluster/MarkerCluster.css">
+<link rel="stylesheet" href="assets/vendor/markercluster/MarkerCluster.Default.css">
 <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
@@ -21,7 +23,7 @@
     <img src="assets/brand/emblem-128.png" alt="" width="44" height="44">
     <div class="brand-text">
       <strong>SUOMEN <span>TALLIT</span></strong>
-      <small>Uudenmaan hevostallit</small>
+      <small>Suomen hevostallit</small>
     </div>
   </div>
 
@@ -65,7 +67,14 @@
     </div>
 
     <section class="fgroup">
+      <h3>Maakunta</h3>
+      <div class="chk" id="f-maakunta"></div>
+    </section>
+
+    <section class="fgroup">
       <h3>Kunta</h3>
+      <input type="search" id="kuntahaku" class="chkhaku" placeholder="Rajaa kuntia…"
+             autocomplete="off" aria-label="Rajaa kuntalistaa">
       <div class="chk" id="f-kunta"></div>
     </section>
 
@@ -114,6 +123,10 @@
       <label class="sw"><input type="checkbox" id="f-hinta"> Vain tallit joilla on hintatietoa</label>
       <label class="sw"><input type="checkbox" id="f-hevoset"> Vain tallit joilla on hevosluettelo</label>
       <label class="sw"><input type="checkbox" id="f-kartta"> Vain kartalla näkyvät</label>
+      <label class="sw"><input type="checkbox" id="f-muut"> Näytä myös muut kuin tallit</label>
+      <p class="hint">Aineistossa on kohteita jotka lähteet luokittelevat talleiksi mutta
+        jotka ovat tarkistettaessa jotain muuta — esimerkiksi hevossairaala tai
+        ohjelmistoyritys. Ne on piilotettu oletuksena.</p>
     </section>
   </aside>
 
@@ -152,6 +165,7 @@
 </footer>
 
 <script src="assets/vendor/leaflet/leaflet.js"></script>
+<script src="assets/vendor/markercluster/leaflet.markercluster.js"></script>
 <script src="data/tallit.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

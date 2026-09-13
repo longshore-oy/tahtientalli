@@ -4,6 +4,11 @@
 
   var DATA = (window.TALLIDATA || { tallit: [] });
   var ALL = DATA.tallit || [];
+  // Aineistossa on kohteita jotka on tunnistettu muuksi kuin talliksi. Ne
+  // sailytetaan tarkastettavina mutta ne eivat kuulu suodatinvalikoihin
+  // eivatka oletusnakymaan.
+  var TALLIT = ALL.filter(function (t) { return !t.piilotettu; });
+  var PIILOSSA = ALL.length - TALLIT.length;
   var view = { list: [], sel: null };
   var map = null, layer = null, markers = {};
 
@@ -28,10 +33,61 @@
     if (v == null) return "";
     return (Math.round(v * 100) / 100).toLocaleString("fi-FI") + " €";
   }
+  function valintaElementissa(e) {
+    var s = window.getSelection && window.getSelection();
+    if (!s || s.isCollapsed || !String(s).trim()) return false;
+    return e.contains(s.anchorNode) || e.contains(s.focusNode);
+  }
+
+  function kopioi(teksti, nappi) {
+    function palaute(ok) {
+      if (!nappi) return;
+      var vanha = nappi.dataset.teksti || nappi.textContent;
+      nappi.dataset.teksti = vanha;
+      nappi.textContent = ok ? "Kopioitu ✓" : "Kopiointi ei onnistunut";
+      setTimeout(function () { nappi.textContent = vanha; }, 1800);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(teksti).then(function () { palaute(true); },
+                                                 function () { varakopio(teksti, palaute); });
+    } else {
+      varakopio(teksti, palaute);
+    }
+  }
+
+  function varakopio(teksti, palaute) {
+    // Vanhempi tapa: nakymaton tekstialue + execCommand
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = teksti;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      palaute(ok);
+    } catch (e) { palaute(false); }
+  }
+
+  function tallinTiedotTekstina(t) {
+    var rivit = [t.nimi];
+    var osoite = [t.osoite, [t.postinumero, t.postitoimipaikka].filter(Boolean).join(" ")]
+      .filter(Boolean).join(", ");
+    if (osoite) rivit.push(osoite);
+    if (t.kunta) rivit.push(t.kunta + (t.maakunta ? ", " + t.maakunta : ""));
+    (t.puhelin || []).forEach(function (p) { rivit.push("Puh. " + p); });
+    (t.email || []).forEach(function (e) { rivit.push(e); });
+    if (t.www) rivit.push(t.www);
+    if (t.lat) rivit.push(t.lat.toFixed(5) + ", " + t.lon.toFixed(5));
+    return rivit.join("\n");
+  }
+
   function hakuindeksi(t) {
     if (t._idx) return t._idx;
     t._idx = norm([
-      t.nimi, (t.aputoiminimet || []).join(" "), t.kunta, t.osoite, t.postitoimipaikka,
+      t.nimi, (t.aputoiminimet || []).join(" "), t.kunta, t.maakunta,
+      t.osoite, t.postitoimipaikka,
       t.postinumero, (t.tyypit || []).join(" "), (t.palvelut || []).join(" "),
       (t.lajit || []).join(" "), (t.tilat || []).join(" "), (t.rodut || []).join(" "),
       (t.hevoset || []).join(" "), t.kuvaus, t.www, t.ytunnus, t.toimiala,
@@ -42,24 +98,25 @@
 
   // ---------------------------------------------------------------- suodattimet
   var F = {
-    q: "", kunta: [], tyyppi: [], palvelu: [], laji: [], tila: [],
+    q: "", maakunta: [], kunta: [], tyyppi: [], palvelu: [], laji: [], tila: [],
     hevmin: null, hevmax: null, hintamin: null, hintamax: null,
     srl: false, www: false, kuva: false, hinta: false, hevoset: false, kartta: false,
+    muut: false,
     sort: "nimi"
   };
 
   function arvot(kentta) {
     var c = {};
-    ALL.forEach(function (t) {
+    TALLIT.forEach(function (t) {
       (t[kentta] || []).forEach(function (v) { c[v] = (c[v] || 0) + 1; });
     });
     return Object.keys(c).sort(function (a, b) {
       return c[b] - c[a] || a.localeCompare(b, "fi");
     }).map(function (k) { return { arvo: k, n: c[k] }; });
   }
-  function kunnat() {
+  function skalaarit(kentta) {
     var c = {};
-    ALL.forEach(function (t) { if (t.kunta) c[t.kunta] = (c[t.kunta] || 0) + 1; });
+    TALLIT.forEach(function (t) { if (t[kentta]) c[t[kentta]] = (c[t[kentta]] || 0) + 1; });
     return Object.keys(c).sort(function (a, b) { return a.localeCompare(b, "fi"); })
       .map(function (k) { return { arvo: k, n: c[k] }; });
   }
@@ -84,11 +141,13 @@
   }
 
   function osuu(t) {
+    if (t.piilotettu && !F.muut) return false;
     if (F.q) {
       var idx = hakuindeksi(t);
       var sanat = norm(F.q).split(" ").filter(Boolean);
       for (var i = 0; i < sanat.length; i++) if (idx.indexOf(sanat[i]) < 0) return false;
     }
+    if (F.maakunta.length && F.maakunta.indexOf(t.maakunta) < 0) return false;
     if (F.kunta.length && F.kunta.indexOf(t.kunta) < 0) return false;
     function kaikki(valitut, lista) {
       for (var i = 0; i < valitut.length; i++)
@@ -184,12 +243,28 @@
     var facts = el("div", "facts");
     if (t.hevosia != null) facts.appendChild(el("span", null, "🐴 " + t.hevosia + " hevosta"));
     if (t.hevoset && t.hevoset.length) facts.appendChild(el("span", null, "📋 " + t.hevoset.length + " nimeä"));
-    if (t.hinta_min != null) facts.appendChild(el("span", null, "💶 alk. " + euro(t.hinta_min)));
+    if (t.hinta_min != null) {
+      // Hintahaarukka on rehellisempi kuin "alkaen": halvin rivi voi olla
+      // esim. lahjakorttilisä, ei varsinainen tuntihinta.
+      var hteksti = (t.hinta_max != null && t.hinta_max !== t.hinta_min)
+        ? euro(t.hinta_min) + "–" + euro(t.hinta_max)
+        : euro(t.hinta_min);
+      facts.appendChild(el("span", null, "💶 " + hteksti));
+    }
     if (t.karsinoita != null) facts.appendChild(el("span", null, "🏠 " + t.karsinoita + " karsinaa"));
     b.appendChild(facts);
 
     c.appendChild(b);
-    c.addEventListener("click", function () { avaa(t.id); });
+
+    // Kortti on klikattava, mutta tekstin maalaaminen ei saa avata paneelia:
+    // raahaus paattyy click-tapahtumaan, joka muuten veisi valinnan mennessaan.
+    var alkuX = 0, alkuY = 0;
+    c.addEventListener("mousedown", function (e) { alkuX = e.clientX; alkuY = e.clientY; });
+    c.addEventListener("click", function (e) {
+      var siirto = Math.abs(e.clientX - alkuX) + Math.abs(e.clientY - alkuY);
+      if (siirto > 6 || valintaElementissa(c)) return;
+      avaa(t.id);
+    });
     c.addEventListener("keydown", function (e) {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); avaa(t.id); }
     });
@@ -229,7 +304,26 @@
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
-    layer = L.layerGroup().addTo(map);
+    // Koko maan aineistossa on yli 1500 tallia, joten merkinnat ryhmitellaan.
+    // Ilman ryhmittelya kartta on maan mittakaavassa yhta merkkiryppasta.
+    layer = (typeof L.markerClusterGroup === "function")
+      ? L.markerClusterGroup({
+          maxClusterRadius: 45,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          disableClusteringAtZoom: 12,
+          iconCreateFunction: function (cluster) {
+            var n = cluster.getChildCount();
+            var koko = n < 10 ? 34 : (n < 100 ? 40 : 48);
+            return L.divIcon({
+              html: '<div class="klusteri"><span>' + n + "</span></div>",
+              className: "",
+              iconSize: L.point(koko, koko)
+            });
+          }
+        })
+      : L.layerGroup();
+    layer.addTo(map);
   }
 
   function piirraKartta(lista) {
@@ -237,6 +331,7 @@
     layer.clearLayers();
     markers = {};
     var pisteet = [];
+    var uudet = [];
     lista.forEach(function (t) {
       if (!t.lat || !t.lon) return;
       var icon = L.divIcon({
@@ -257,10 +352,12 @@
           ev.preventDefault(); avaa(a.getAttribute("data-open"));
         });
       });
-      m.addTo(layer);
+      uudet.push(m);
       markers[t.id] = m;
       pisteet.push([t.lat, t.lon]);
     });
+    if (typeof layer.addLayers === "function") layer.addLayers(uudet);
+    else uudet.forEach(function (m) { layer.addLayer(m); });
     view.pisteet = pisteet;
     if (document.body.dataset.view === "map") sovitaKartta();
   }
@@ -305,7 +402,17 @@
     body.appendChild(hero);
 
     var w = el("div", "dwrap");
-    w.appendChild(el("h2", null, t.nimi));
+    var otsikko = el("h2", null, t.nimi);
+    var kopionappi = el("button", "kopioi", "⧉");
+    kopionappi.title = "Kopioi tallin nimi";
+    kopionappi.setAttribute("aria-label", "Kopioi tallin nimi");
+    kopionappi.addEventListener("click", function () {
+      kopioi(t.nimi, null);
+      kopionappi.classList.add("ok");
+      setTimeout(function () { kopionappi.classList.remove("ok"); }, 1400);
+    });
+    otsikko.appendChild(kopionappi);
+    w.appendChild(otsikko);
     w.appendChild(el("div", "dsub",
       (t.tyypit || []).join(" · ") + " — " + (t.kunta || "") + ", " + t.maakunta));
 
@@ -332,7 +439,14 @@
           if (!map) return;
           map.invalidateSize();
           map.setView([t.lat, t.lon], 14);
-          if (markers[t.id]) markers[t.id].openPopup();
+          var m = markers[t.id];
+          if (!m) return;
+          // ryhmitellyn merkinnan on ensin avauduttava ryppaastaan
+          if (typeof layer.zoomToShowLayer === "function") {
+            layer.zoomToShowLayer(m, function () { m.openPopup(); });
+          } else {
+            m.openPopup();
+          }
         }, 120);
       });
       br.appendChild(a3);
@@ -345,6 +459,9 @@
       var a5 = el("a", "btn", "Sähköposti");
       a5.href = "mailto:" + t.email[0]; br.appendChild(a5);
     }
+    var a6 = el("button", "btn", "Kopioi tiedot");
+    a6.addEventListener("click", function () { kopioi(tallinTiedotTekstina(t), a6); });
+    br.appendChild(a6);
     w.appendChild(br);
 
     // perustiedot
@@ -391,15 +508,20 @@
 
     // hinnat
     if (t.hinnat && t.hinnat.length) {
-      var s3 = el("div", "dsec"); s3.appendChild(el("h4", null, "Hinnat"));
+      var s3 = el("div", "dsec");
+      s3.appendChild(el("h4", null, "Hinnat (" + t.hinnat.length + ")"));
+      var wrap = el("div", "ptablewrap");
       var tb = el("table", "ptable");
       t.hinnat.forEach(function (h) {
         var tr = el("tr");
-        tr.appendChild(el("td", null, h.nimike));
+        var td = el("td", null, h.nimike);
+        if (h.lahde) td.title = "Lähde: " + h.lahde;
+        tr.appendChild(td);
         tr.appendChild(el("td", null, euro(h.hinta) + (h.yksikko ? " " + h.yksikko : "")));
         tb.appendChild(tr);
       });
-      s3.appendChild(tb);
+      wrap.appendChild(tb);
+      s3.appendChild(wrap);
       s3.appendChild(el("p", "hint", "Hinnat on poimittu automaattisesti tallin verkkosivuilta — tarkista aina ajantasainen hinta tallilta."));
       w.appendChild(s3);
     }
@@ -439,6 +561,16 @@
     if (t.luottamus_perusteet && t.luottamus_perusteet.length) {
       s6.appendChild(el("p", "hint", "Tunnistettu talliksi: " + t.luottamus_perusteet.join(", ") + "."));
     }
+    // Kerro avoimesti miksi kotisivun sisaltoa ei nayteta ja miksi kohde on
+    // luokiteltu muuksi kuin talliksi — muuten puuttuva tieto nayttaa virheelta.
+    if (t.verkkosivu_hylatty) {
+      s6.appendChild(el("p", "hint",
+        "Kotisivun sisältöä ei ole käytetty: " + t.verkkosivu_hylatty + "."));
+    }
+    if (t.piilotettu) {
+      s6.appendChild(el("p", "hint",
+        "Tätä kohdetta ei näytetä tallina: " + t.piilotus_syy + "."));
+    }
     w.appendChild(s6);
 
     body.appendChild(w);
@@ -473,8 +605,9 @@
     }
 
     var kartalla = lista.filter(function (t) { return t.lat && t.lon; }).length;
+    var kaikki = F.muut ? ALL.length : TALLIT.length;
     $("#count").innerHTML = "<b>" + lista.length + "</b> tallia" +
-      (lista.length !== ALL.length ? " / " + ALL.length : "") +
+      (lista.length !== kaikki ? " / " + kaikki : "") +
       ' <span style="color:var(--soft)">· ' + kartalla + " kartalla</span>";
 
     piirraKartta(lista);
@@ -486,7 +619,8 @@
       $("#count").textContent = "Aineistoa ei löytynyt (data/tallit.js puuttuu).";
       return;
     }
-    rakennaSuodatin("#f-kunta", kunnat(), "kunta");
+    rakennaSuodatin("#f-maakunta", skalaarit("maakunta"), "maakunta");
+    rakennaSuodatin("#f-kunta", skalaarit("kunta"), "kunta");
     rakennaSuodatin("#f-tyyppi", arvot("tyypit"), "tyyppi");
     rakennaSuodatin("#f-palvelu", arvot("palvelut"), "palvelu");
     rakennaSuodatin("#f-laji", arvot("lajit"), "laji");
@@ -505,6 +639,15 @@
     });
     $("#sort").addEventListener("change", function (e) { F.sort = e.target.value; paivita(); });
 
+    // kuntalistan rajaus: 300 kuntaa on liikaa selattavaksi
+    $("#kuntahaku").addEventListener("input", function (e) {
+      var s = norm(e.target.value);
+      document.querySelectorAll("#f-kunta label").forEach(function (l) {
+        var i = l.querySelector("input");
+        l.hidden = !!s && norm(i.value).indexOf(s) < 0 && !i.checked;
+      });
+    });
+
     [["#f-hevmin", "hevmin"], ["#f-hevmax", "hevmax"],
      ["#f-hintamin", "hintamin"], ["#f-hintamax", "hintamax"]].forEach(function (p) {
       $(p[0]).addEventListener("input", function (e) {
@@ -514,18 +657,19 @@
       });
     });
     [["#f-srl", "srl"], ["#f-www", "www"], ["#f-kuva", "kuva"], ["#f-hinta", "hinta"],
-     ["#f-hevoset", "hevoset"], ["#f-kartta", "kartta"]].forEach(function (p) {
+     ["#f-hevoset", "hevoset"], ["#f-kartta", "kartta"], ["#f-muut", "muut"]].forEach(function (p) {
       $(p[0]).addEventListener("change", function (e) { F[p[1]] = e.target.checked; paivita(); });
     });
 
     $("#reset").addEventListener("click", function () {
-      F = { q: "", kunta: [], tyyppi: [], palvelu: [], laji: [], tila: [],
+      F = { q: "", maakunta: [], kunta: [], tyyppi: [], palvelu: [], laji: [], tila: [],
             hevmin: null, hevmax: null, hintamin: null, hintamax: null,
             srl: false, www: false, kuva: false, hinta: false, hevoset: false,
-            kartta: false, sort: F.sort };
+            kartta: false, muut: false, sort: F.sort };
       document.querySelectorAll(".filters input").forEach(function (i) {
         if (i.type === "checkbox") i.checked = false; else i.value = "";
       });
+      document.querySelectorAll("#f-kunta label").forEach(function (l) { l.hidden = false; });
       $("#q").value = "";
       paivita();
     });
